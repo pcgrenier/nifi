@@ -111,7 +111,7 @@
 
             // add the content to the prompt
             var content = $('<p></p>').append(options.dialogContent);
-            $('#nf-yes-no-dialog-content').append(content);
+            $('#nf-yes-no-dialog-content').html(content);
 
             // update the button model
             $('#nf-yes-no-dialog').modal('setButtonModel', [{
@@ -148,7 +148,16 @@
                         }
                     }
                 }]);
-
+            
+            // On open take the focus so enter doesn't trigger a different action
+            $('#nf-yes-no-dialog').modal('setOpenHandler', function(){
+                $('#nf-yes-no-dialog').attr("tabindex", -1).focus();
+                // hi-jack the enter key, to allow quick acknowledgement
+                $('#nf-yes-no-dialog').is(":visible") && e.keyCode == 13){
+                    $('nf-yes-no-dialog div.dialog-buttons div.button').first().click();
+                }
+            }
+                                         
             // show the dialog
             $('#nf-yes-no-dialog').modal('setHeaderText', options.headerText).modal('show');
         },
