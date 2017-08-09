@@ -918,87 +918,67 @@
                     dialogContent: 'No eligible components are selected. Please select the components to be deleted.'
                 });
             } else {
-                if (selection.size() === 1) {
-                    var selectionData = selection.datum();
-                    var revision = nfClient.getRevision(selectionData);
-
-                    $.ajax({
-                        type: 'DELETE',
-                        url: selectionData.uri + '?' + $.param({
-                            version: revision.version,
-                            clientId: revision.clientId
-                        }),
-                        dataType: 'json'
-                    }).done(function (response) {
-                        // remove the component/connection in question
-                        nfCanvasUtils.getComponentByType(selectionData.type).remove(selectionData.id);
-
-                        // if the selection is a connection, reload the source and destination accordingly
-                        if (nfCanvasUtils.isConnection(selection) === false) {
-                            var connections = nfConnection.getComponentConnections(selectionData.id);
-                            if (connections.length > 0) {
-                                var ids = [];
-                                $.each(connections, function (_, connection) {
-                                    ids.push(connection.id);
-                                });
-
-                                // remove the corresponding connections
-                                nfConnection.remove(ids);
+                var confirmationPromise = $.Deferred(function (deferred){
+                    if (selection.size() > 1 || selection.datum().type === "ProcessGroup"){
+                        var yesNoDialog = null;
+                        if(selection.size() === 1 && selection.datum().type === "ProcessGroup"){
+                            var component = selection.datum().component;
+                            var componentCnt = 0;
+                            for (var key in component){
+                                if (/Count$/.test(key)){
+                                    componentCnt += component[key];
+                                }
                             }
+                            if (componentCnt > 0){
+                                yesNoDialog = "Are you sure you want to delete a processor group with " + componentCnt + " components?";
+                            }
+                        } else {
+                            yesNoDialog = "Are you sure you want to delete " + selection.size() + " components?";
                         }
-
-                        // update URL deep linking params
-                        nfCanvasUtils.setURLParameters();
-
-                        // refresh the birdseye
-                        nfBirdseye.refresh();
-                        // inform Angular app values have changed
-                        nfNgBridge.digest();
-                    }).fail(nfErrorHandler.handleAjaxError);
-                } else {
-                    var parentGroupId = nfCanvasUtils.getGroupId();
-
-                    // create a snippet for the specified component and link to the data flow
-                    var snippet = nfSnippet.marshal(selection, parentGroupId);
-                    nfSnippet.create(snippet).done(function (response) {
-                        // remove the snippet, effectively removing the components
-                        nfSnippet.remove(response.snippet.id).done(function () {
-                            var components = d3.map();
-
-                            // add the id to the type's array
-                            var addComponent = function (type, id) {
-                                if (!components.has(type)) {
-                                    components.set(type, []);
-                                }
-                                components.get(type).push(id);
-                            };
-
-                            // go through each component being removed
-                            selection.each(function (d) {
-                                // remove the corresponding entry
-                                addComponent(d.type, d.id);
-
-                                // if this is not a connection, see if it has any connections that need to be removed
-                                if (d.type !== 'Connection') {
-                                    var connections = nfConnection.getComponentConnections(d.id);
-                                    if (connections.length > 0) {
-                                        $.each(connections, function (_, connection) {
-                                            addComponent('Connection', connection.id);
-                                        });
-                                    }
+                        
+                        if (yesNoDialog !== null){
+                            nfDialog.showYesNoDialog({
+                                headerText: 'Delete confirmation',
+                                dialogContent: yesNoDialog,
+                                noHandler: function(){
+                                    deferred.reject();
+                                },
+                                yesHandler: function(){
+                                    deferred.resolve();
                                 }
                             });
+                        } else { deferred.resolve(); }
+                    } else { deferred.resolve(); }
+                }).promise();
+                
+                confirmationPromise.done(function(){
+                    if (selection.size() === 1) {
+                        var selectionData = selection.datum();
+                        var revision = nfClient.getRevision(selectionData);
 
-                            // remove all the non connections in the snippet first
-                            components.forEach(function (type, ids) {
-                                if (type !== 'Connection') {
-                                    nfCanvasUtils.getComponentByType(type).remove(ids);
+                        $.ajax({
+                            type: 'DELETE',
+                            url: selectionData.uri + '?' + $.param({
+                                version: revision.version,
+                                clientId: revision.clientId
+                            }),
+                            dataType: 'json'
+                        }).done(function (response) {
+                            // remove the component/connection in question
+                            nfCanvasUtils.getComponentByType(selectionData.type).remove(selectionData.id);
+
+                            // if the selection is a connection, reload the source and destination accordingly
+                            if (nfCanvasUtils.isConnection(selection) === false) {
+                                var connections = nfConnection.getComponentConnections(selectionData.id);
+                                if (connections.length > 0) {
+                                    var ids = [];
+                                    $.each(connections, function (_, connection) {
+                                        ids.push(connection.id);
+                                    });
+
+                                    // remove the corresponding connections
+                                    nfConnection.remove(ids);
                                 }
-                            });
-
-                            // then remove all the connections
-                            if (components.has('Connection')) {
-                                nfConnection.remove(components.get('Connection'));
                             }
 
                             // update URL deep linking params
@@ -1006,12 +986,67 @@
 
                             // refresh the birdseye
                             nfBirdseye.refresh();
-
                             // inform Angular app values have changed
                             nfNgBridge.digest();
                         }).fail(nfErrorHandler.handleAjaxError);
-                    }).fail(nfErrorHandler.handleAjaxError);
-                }
+                    } else {
+                        var parentGroupId = nfCanvasUtils.getGroupId();
+
+                        // create a snippet for the specified component and link to the data flow
+                        var snippet = nfSnippet.marshal(selection, parentGroupId);
+                        nfSnippet.create(snippet).done(function (response) {
+                            // remove the snippet, effectively removing the components
+                            nfSnippet.remove(response.snippet.id).done(function () {
+                                var components = d3.map();
+
+                                // add the id to the type's array
+                                var addComponent = function (type, id) {
+                                    if (!components.has(type)) {
+                                        components.set(type, []);
+                                    }
+                                    components.get(type).push(id);
+                                };
+
+                                // go through each component being removed
+                                selection.each(function (d) {
+                                    // remove the corresponding entry
+                                    addComponent(d.type, d.id);
+
+                                    // if this is not a connection, see if it has any connections that need to be removed
+                                    if (d.type !== 'Connection') {
+                                        var connections = nfConnection.getComponentConnections(d.id);
+                                        if (connections.length > 0) {
+                                            $.each(connections, function (_, connection) {
+                                                addComponent('Connection', connection.id);
+                                            });
+                                        }
+                                    }
+                                });
+
+                                // remove all the non connections in the snippet first
+                                components.forEach(function (type, ids) {
+                                    if (type !== 'Connection') {
+                                        nfCanvasUtils.getComponentByType(type).remove(ids);
+                                    }
+                                });
+
+                                // then remove all the connections
+                                if (components.has('Connection')) {
+                                    nfConnection.remove(components.get('Connection'));
+                                }
+
+                                // update URL deep linking params
+                                nfCanvasUtils.setURLParameters();
+
+                                // refresh the birdseye
+                                nfBirdseye.refresh();
+
+                                // inform Angular app values have changed
+                                nfNgBridge.digest();
+                            }).fail(nfErrorHandler.handleAjaxError);
+                        }).fail(nfErrorHandler.handleAjaxError);
+                    }
+                });
             }
         },
 
