@@ -1817,6 +1817,14 @@ public class TestQuery {
     }
 
     @Test
+    public void testHash() {
+        final Map<String, String> attributes = new HashMap<>();
+        attributes.put("attr", "string value");
+        verifyEquals("${attr:hash('MD5')}", attributes, "64e58419496c7248b4ef25731f88b8c3");
+        verifyEquals("${attr:hash('SHA-1')}", attributes, "64e58419496c7248b4ef25731f88b8c3");
+    }
+
+    @Test
     public void testThread() {
         final Map<String, String> attributes = new HashMap<>();
         verifyEquals("${thread()}", attributes, "main");

@@ -177,6 +177,7 @@ AND : 'and';
 JOIN : 'join';
 TO_LITERAL : 'literal';
 JSON_PATH : 'jsonPath';
+HASH : 'hash';
 
 // 2 arg functions
 SUBSTRING	: 'substring';
